@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param, Put, Body, HttpCode } from '@nestjs/common';
 import { RpcException, GrpcMethod } from '@nestjs/microservices';
 import { UserService } from './user.service';
 import { AuthorizedGuard } from '../../common/guards';
@@ -6,21 +6,64 @@ import { Serialize } from '../../common/interceptors';
 import { UserInfoDto } from './dtos';
 import { CurrentUserId, GrpcRequiredFields } from '../../common/decorators';
 import {
-  Empty,
-  UserIdMsg,
-  SignUpMsg,
+  Empty, UserIdMsg, SignUpMsg,
   SERVICE_NAME as USER_SERVICE_NAME,
 } from './users.grpc';
+import { ValidateMongoId } from '../../common/pipes';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+
+class UpdateFieldDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  bio?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  industry?: string;
+}
 
 @Controller({ path: 'u', version: '1' })
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Get('/me')
   @Serialize(UserInfoDto)
   @UseGuards(AuthorizedGuard)
   getUserInfo(@CurrentUserId() userId: string): Promise<UserInfoDto> {
     return this.userService.getUserInfo(userId);
+  }
+
+  @Get('/:userId/public')
+  async getPublicProfile(@Param('userId', ValidateMongoId) userId: string) {
+    return this.userService.getPublicProfile(userId);
+  }
+
+  @Put('/me/bio')
+  @UseGuards(AuthorizedGuard)
+  @HttpCode(204)
+  async updateBio(@CurrentUserId() userId: string, @Body() body: UpdateFieldDto) {
+    await this.userService.updateProfileField(userId, 'bio', body.bio || '');
+  }
+
+  @Put('/me/location')
+  @UseGuards(AuthorizedGuard)
+  @HttpCode(204)
+  async updateLocation(@CurrentUserId() userId: string, @Body() body: UpdateFieldDto) {
+    await this.userService.updateProfileField(userId, 'location', body.location || '');
+  }
+
+  @Put('/me/industry')
+  @UseGuards(AuthorizedGuard)
+  @HttpCode(204)
+  async updateIndustry(@CurrentUserId() userId: string, @Body() body: UpdateFieldDto) {
+    await this.userService.updateProfileField(userId, 'industry', body.industry || '');
   }
 
   @GrpcMethod(USER_SERVICE_NAME, 'SignUp')
@@ -35,20 +78,8 @@ export class UserController {
   @GrpcRequiredFields(['userId'])
   async ban(userIdMsg: UserIdMsg) {
     const result = await this.userService.ban(userIdMsg.userId!);
-    if (result === null) {
-      throw new RpcException({
-        code: 5, // NOT_FOUND
-        message: 'User not found',
-      });
-    }
-
-    if (result === false) {
-      throw new RpcException({
-        code: 9, // FAILED_PRECONDITION
-        message: 'Already banned',
-      });
-    }
-
+    if (result === null) throw new RpcException({ code: 5, message: 'User not found' });
+    if (result === false) throw new RpcException({ code: 9, message: 'Already banned' });
     return {};
   }
 
@@ -56,20 +87,8 @@ export class UserController {
   @GrpcRequiredFields(['userId'])
   async unban(userIdMsg: UserIdMsg) {
     const result = await this.userService.unban(userIdMsg.userId!);
-    if (result === null) {
-      throw new RpcException({
-        code: 5, // NOT_FOUND
-        message: 'User not found',
-      });
-    }
-
-    if (result === false) {
-      throw new RpcException({
-        code: 9, // FAILED_PRECONDITION
-        message: 'Not banned',
-      });
-    }
-
+    if (result === null) throw new RpcException({ code: 5, message: 'User not found' });
+    if (result === false) throw new RpcException({ code: 9, message: 'Not banned' });
     return {};
   }
 
@@ -77,20 +96,8 @@ export class UserController {
   @GrpcRequiredFields(['userId'])
   async delete(userIdMsg: UserIdMsg): Promise<Empty> {
     const result = await this.userService.delete(userIdMsg.userId!);
-    if (result === null) {
-      throw new RpcException({
-        code: 5, // NOT_FOUND
-        message: 'User not found',
-      });
-    }
-
-    if (result === false) {
-      throw new RpcException({
-        code: 9, // FAILED_PRECONDITION
-        message: 'Already deleted',
-      });
-    }
-
+    if (result === null) throw new RpcException({ code: 5, message: 'User not found' });
+    if (result === false) throw new RpcException({ code: 9, message: 'Already deleted' });
     return {};
   }
 }

@@ -14,7 +14,7 @@ export class UserService implements OnModuleInit {
     @InjectModel(Collections.USERS)
     private readonly userModel: Model<User>,
     private readonly systemUserIdProvider: SystemUserIdProvider,
-  ) {}
+  ) { }
 
   async onModuleInit(): Promise<void> {
     await this.ensureSystemUser();
@@ -22,26 +22,10 @@ export class UserService implements OnModuleInit {
 
   private async ensureSystemUser(): Promise<void> {
     const result = await this.userModel.findOneAndUpdate(
-      {
-        username: SYSTEM_USERNAME,
-        email: null,
-      },
-      {
-        globalPermissions: {
-          permissions: Object.values(GlobalPermissions),
-        },
-      },
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInserta: true,
-        timestamps: false,
-        projection: {
-          _id: 1,
-        },
-      },
+      { username: SYSTEM_USERNAME, email: null },
+      { globalPermissions: { permissions: Object.values(GlobalPermissions) } },
+      { new: true, upsert: true, setDefaultsOnInsert: true, timestamps: false, projection: { _id: 1 } },
     );
-
     this.systemUserIdProvider.systemUserId = result._id;
   }
 
@@ -51,50 +35,35 @@ export class UserService implements OnModuleInit {
       { $setOnInsert: { username } },
       { upsert: true, new: true, projection: { _id: 1 } },
     );
-
     return user._id.toString();
   }
 
-  private async changePropertyIfFound(
-    userId: string,
-    property: AnyKeys<User>,
-  ): Promise<boolean | null> {
-    const result = await this.userModel.updateOne(
-      { _id: userId },
-      { $set: property },
-    );
-
-    if (result.matchedCount === 0) {
-      return null;
-    }
-
+  private async changePropertyIfFound(userId: string, property: AnyKeys<User>): Promise<boolean | null> {
+    const result = await this.userModel.updateOne({ _id: userId }, { $set: property });
+    if (result.matchedCount === 0) return null;
     return result.modifiedCount !== 0;
   }
 
   async delete(userId: string): Promise<boolean | null> {
-    return await this.changePropertyIfFound(userId, { isDeleted: true });
+    return this.changePropertyIfFound(userId, { isDeleted: true });
   }
 
   async ban(userId: string): Promise<boolean | null> {
-    return await this.changePropertyIfFound(userId, { isBanned: true });
+    return this.changePropertyIfFound(userId, { isBanned: true });
   }
 
-  async unban(userId: string) {
-    return await this.changePropertyIfFound(userId, { isBanned: false });
+  async unban(userId: string): Promise<boolean | null> {
+    return this.changePropertyIfFound(userId, { isBanned: false });
   }
 
   async getIdByUsername(username: string): Promise<string | null> {
     const result = await this.userModel.findOne({ username }, { _id: 1 });
-
     return result?._id.toString() ?? null;
   }
 
   async getUser(userId: string): Promise<UserDocument> {
-    const result = await this.userModel.findOne({ userId });
-    if (!result) {
-      throw new NotFoundException('User not exists');
-    }
-
+    const result = await this.userModel.findOne({ _id: userId });
+    if (!result) throw new NotFoundException('User not exists');
     return result;
   }
 
@@ -127,10 +96,41 @@ export class UserService implements OnModuleInit {
       },
     ]);
 
-    if (!userInfo.length) {
-      throw new NotFoundException('User not exists');
-    }
-
+    if (!userInfo.length) throw new NotFoundException('User not exists');
     return userInfo[0];
+  }
+
+  async getPublicProfile(userId: string): Promise<any> {
+    if (!Types.ObjectId.isValid(userId)) throw new NotFoundException('User not found');
+    const user = await this.userModel
+      .findOne({ _id: new Types.ObjectId(userId), isDeleted: false })
+      .select('_id username isBanned globalPermissions trustRate activities createdAt bio location industry')
+      .lean();
+
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      id: (user as any)._id.toString(),
+      username: (user as any).username,
+      isBanned: (user as any).isBanned,
+      isAdmin: !!((user as any).globalPermissions?.permissions?.length),
+      rating: (user as any).trustRate || 0,
+      joinedDate: (user as any).createdAt?.toISOString?.() || '',
+      bio: (user as any).bio || null,
+      location: (user as any).location || null,
+      industry: (user as any).industry || null,
+    };
+  }
+
+  async updateProfileField(
+    userId: string,
+    field: 'bio' | 'location' | 'industry',
+    value: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(userId)) return;
+    await this.userModel.updateOne(
+      { _id: new Types.ObjectId(userId), isDeleted: false },
+      { $set: { [field]: value } },
+    );
   }
 }

@@ -1,0 +1,4 @@
+allowBuilds:
+  '@nestjs/core': true
+  mongodb-memory-server: true
+  protobufjs: true

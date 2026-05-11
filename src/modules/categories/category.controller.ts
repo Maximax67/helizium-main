@@ -1,61 +1,51 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Put,
-  UseGuards,
+  Body, Controller, Delete, Get, HttpCode,
+  Param, Post, Put, UseGuards,
 } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import {
-  CategoryDto,
-  CategoryFullInfoDto,
-  CreateCategoryDto,
-  EditCategoryDto,
-  RestoreCategoryDto,
+  CategoryDto, CategoryFullInfoDto, CreateCategoryDto, EditCategoryDto, RestoreCategoryDto,
 } from './dtos';
 import { AuthorizedGuard, ForbidApiTokensGuard } from '../../common/guards';
 import { TokenLimits } from '../../common/enums';
 import { ValidateMongoId } from '../../common/pipes';
-import { AllowedLimits, CurrentUserId } from '../../common/decorators';
+import { AllowedLimits, CurrentUserId, OptionalAuthorization } from '../../common/decorators';
 import { Serialize } from '../../common/interceptors';
 
 @Controller({ path: 'categories', version: '1' })
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CategoryService) { }
 
   @Post()
   @UseGuards(AuthorizedGuard)
   @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
-  async create(
-    @CurrentUserId() userId: string,
-    @Body() createCategoryDto: CreateCategoryDto,
-  ) {
-    await this.categoryService.create(userId, createCategoryDto);
+  async create(@CurrentUserId() userId: string, @Body() dto: CreateCategoryDto) {
+    await this.categoryService.create(userId, dto);
   }
 
   @Get()
+  @OptionalAuthorization()
   @Serialize(CategoryFullInfoDto)
   async getRoot() {
     return this.categoryService.getRootFullInfo();
   }
 
   @Get('/:id')
+  @OptionalAuthorization()
   @Serialize(CategoryFullInfoDto)
   async get(@Param('id', ValidateMongoId) categoryId: string) {
     return this.categoryService.getFullInfo(categoryId, null);
   }
 
   @Get('/:id/info')
+  @OptionalAuthorization()
   @Serialize(CategoryDto)
   async getInfo(@Param('id', ValidateMongoId) categoryId: string) {
     return this.categoryService.get(categoryId, null);
   }
 
   @Get('/:id/permissions')
+  @OptionalAuthorization()
   async getPermissions(@Param('id', ValidateMongoId) categoryId: string) {
     return this.categoryService.getPermissions(categoryId, null);
   }
@@ -67,9 +57,9 @@ export class CategoryController {
   async edit(
     @CurrentUserId() userId: string,
     @Param('id', ValidateMongoId) categoryId: string,
-    @Body() editCategoryDto: EditCategoryDto,
+    @Body() dto: EditCategoryDto,
   ) {
-    await this.categoryService.edit(categoryId, userId, editCategoryDto);
+    await this.categoryService.edit(categoryId, userId, dto);
   }
 
   @Delete('/:id')
@@ -87,10 +77,7 @@ export class CategoryController {
   @UseGuards(AuthorizedGuard)
   @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   @HttpCode(204)
-  async pin(
-    @CurrentUserId() userId: string,
-    @Param('id', ValidateMongoId) categoryId: string,
-  ) {
+  async pin(@CurrentUserId() userId: string, @Param('id', ValidateMongoId) categoryId: string) {
     await this.categoryService.pin(categoryId, userId);
   }
 
@@ -98,10 +85,7 @@ export class CategoryController {
   @UseGuards(AuthorizedGuard)
   @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   @HttpCode(204)
-  async unpin(
-    @CurrentUserId() userId: string,
-    @Param('id', ValidateMongoId) categoryId: string,
-  ) {
+  async unpin(@CurrentUserId() userId: string, @Param('id', ValidateMongoId) categoryId: string) {
     await this.categoryService.unpin(categoryId, userId);
   }
 
@@ -112,12 +96,8 @@ export class CategoryController {
   async restore(
     @CurrentUserId() userId: string,
     @Param('id', ValidateMongoId) categoryId: string,
-    @Body() restoreCategoryDto: RestoreCategoryDto,
+    @Body() dto: RestoreCategoryDto,
   ) {
-    await this.categoryService.restore(
-      categoryId,
-      userId,
-      restoreCategoryDto.restoreInner,
-    );
+    await this.categoryService.restore(categoryId, userId, dto.restoreInner);
   }
 }

@@ -8,6 +8,10 @@ import { getMongoUri } from './common/helpers';
 import { UsersModule } from './modules/users';
 import { CategoriesModule } from './modules/categories';
 import { TracerModule } from './modules/tracer';
+import { TasksModule } from './modules/tasks';
+import { CommentsModule } from './modules/comments';
+import { ReportsModule } from './modules/reports';
+import { ChatModule } from './modules/chat';
 
 @Module({
   imports: [
@@ -17,6 +21,10 @@ import { TracerModule } from './modules/tracer';
     }),
     UsersModule,
     CategoriesModule,
+    TasksModule,
+    CommentsModule,
+    ReportsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
@@ -25,8 +33,10 @@ import { TracerModule } from './modules/tracer';
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
       }),
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

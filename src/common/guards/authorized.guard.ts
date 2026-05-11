@@ -10,29 +10,24 @@ import { isEnumValue } from '../helpers';
 
 @Injectable()
 export class AuthorizedGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const contextHandler = context.getHandler();
     const request = context.switchToHttp().getRequest<FastifyRequest>();
 
-    const isOptional = this.reflector.get(
-      OptionalAuthorization,
-      contextHandler,
-    );
+    const isOptional = this.reflector.get(OptionalAuthorization, contextHandler);
 
     const headers = request.headers;
-
-    const tokenType = headers['x-token-type'];
-    const tokenLimits = headers['x-token-limits'];
-    const userId = headers['x-user'];
+    const tokenType = headers['x-token-type'] as string | undefined;
+    const tokenLimits = headers['x-token-limits'] as string | undefined;
+    const userId = headers['x-user'] as string | undefined;
 
     if (!tokenType || !tokenLimits || !userId) {
       if (isOptional) {
         (request as any).auth = null;
         return true;
       }
-
       throw new ApiError(Errors.JWT_TOKEN_INVALID_OR_MISSING);
     }
 
@@ -41,6 +36,10 @@ export class AuthorizedGuard implements CanActivate {
       !isEnumValue(TokenLimits, tokenLimits) ||
       Array.isArray(userId)
     ) {
+      if (isOptional) {
+        (request as any).auth = null;
+        return true;
+      }
       throw new ApiError(Errors.JWT_TOKEN_INVALID_OR_MISSING);
     }
 
@@ -55,7 +54,7 @@ export class AuthorizedGuard implements CanActivate {
     if (
       !allowedLimits ||
       (Array.isArray(allowedLimits)
-        ? allowedLimits.includes(tokenLimits)
+        ? allowedLimits.includes(tokenLimits as TokenLimits)
         : allowedLimits === tokenLimits)
     ) {
       return true;

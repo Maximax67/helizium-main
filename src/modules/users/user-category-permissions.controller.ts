@@ -10,7 +10,8 @@ import {
 } from '@nestjs/common';
 import { UserCategoryPermissionsService } from './user-category-permissions.service';
 import { AuthorizedGuard, ForbidApiTokensGuard } from '../../common/guards';
-import { CurrentUserId } from '../../common/decorators';
+import { AllowedLimits, CurrentUserId } from '../../common/decorators';
+import { TokenLimits } from '../../common/enums';
 import { ValidateMongoId } from '../../common/pipes';
 import { UserCategoryPermissionsArrayDto } from './dtos';
 import { Serialize } from '../../common/interceptors';
@@ -21,7 +22,7 @@ import { CategoryPermissionsFullDto } from '../categories/dtos';
 export class UserCategoryPermissionsController {
   constructor(
     private readonly userCategoryPermissionsService: UserCategoryPermissionsService,
-  ) {}
+  ) { }
 
   @Get()
   @Serialize(UserCategoryPermissionsArrayDto)
@@ -31,14 +32,9 @@ export class UserCategoryPermissionsController {
     @CurrentUserId() currentUserId: string,
   ) {
     const result = await this.userCategoryPermissionsService.getIfAllowed(
-      userId,
-      categoryId,
-      currentUserId,
+      userId, categoryId, currentUserId,
     );
-
-    return {
-      permissions: result,
-    };
+    return { permissions: result };
   }
 
   @Post()
@@ -49,21 +45,10 @@ export class UserCategoryPermissionsController {
     @CurrentUserId() currentUserId: string,
     @Body() setPermissionsDto: CategoryPermissionsFullDto,
   ) {
-    const {
-      categoriesGranted,
-      categoriesRevoked,
-      topicsGranted,
-      topicsRevoked,
-    } = setPermissionsDto;
-
+    const { categoriesGranted, categoriesRevoked, topicsGranted, topicsRevoked } = setPermissionsDto;
     await this.userCategoryPermissionsService.setIfAllowed(
-      userId,
-      categoryId,
-      currentUserId,
-      categoriesGranted,
-      categoriesRevoked,
-      topicsGranted,
-      topicsRevoked,
+      userId, categoryId, currentUserId,
+      categoriesGranted, categoriesRevoked, topicsGranted, topicsRevoked,
     );
   }
 
@@ -75,10 +60,6 @@ export class UserCategoryPermissionsController {
     @Param('categoryId', ValidateMongoId) categoryId: string,
     @CurrentUserId() currentUserId: string,
   ) {
-    await this.userCategoryPermissionsService.revokeAllIfAllowed(
-      userId,
-      categoryId,
-      currentUserId,
-    );
+    await this.userCategoryPermissionsService.revokeAllIfAllowed(userId, categoryId, currentUserId);
   }
 }

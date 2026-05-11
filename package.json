@@ -30,10 +30,15 @@
     "@nestjs/microservices": "^10.4.5",
     "@nestjs/mongoose": "^10.0.10",
     "@nestjs/platform-fastify": "^10.4.5",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.217.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
+    "eslint-html-reporter": "^0.7.4",
+    "fastify": "^5.8.5",
+    "mongodb": "^7.2.0",
     "mongoose": "^8.7.1",
     "mongoose-long": "^0.8.0",
     "nestjs-proto-gen-ts": "^1.0.21",
@@ -92,5 +97,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  }
+  },
+  "packageManager": "pnpm@11.0.9+sha512.34ce82e6780233cf9cad8685029a8f81d2e06196c5a9bad98879f7424940c6817c4e4524fb7d38b8553ceed48b9758b8ebaf1abd3600c232c4c8cf7366086f38"
 }
