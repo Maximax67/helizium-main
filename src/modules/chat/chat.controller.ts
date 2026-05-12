@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
+import { ChatWsService } from './chat-ws.service';
 import { AuthorizedGuard, ForbidApiTokensGuard } from '../../common/guards';
 import { AllowedLimits, CurrentUserId } from '../../common/decorators';
 import { TokenLimits } from '../../common/enums';
@@ -26,7 +27,16 @@ class SendMessageDto {
 @UseGuards(AuthorizedGuard, ForbidApiTokensGuard)
 @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
 export class ChatController {
-  constructor(private readonly chatService: ChatService) { }
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatWsService: ChatWsService,
+  ) {}
+
+  @Get('/ws-token')
+  getWsToken(@CurrentUserId() userId: string) {
+    const token = this.chatWsService.generateToken(userId);
+    return { token };
+  }
 
   @Get()
   async getChats(@CurrentUserId() userId: string) {

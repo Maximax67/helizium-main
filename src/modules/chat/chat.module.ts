@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ChatMessageSchema } from './schemas/message.schema';
 import { ChatService } from './chat.service';
+import { ChatWsService } from './chat-ws.service';
 import { ChatController } from './chat.controller';
 import { Collections } from '../../common/enums';
 import { UserSchema } from '../users/schemas';
@@ -13,7 +14,7 @@ import { UserSchema } from '../users/schemas';
       { name: Collections.USERS, schema: UserSchema },
     ]),
   ],
-  providers: [ChatService],
+  providers: [ChatService, ChatWsService],
   controllers: [ChatController],
 })
-export class ChatModule { }
+export class ChatModule {}

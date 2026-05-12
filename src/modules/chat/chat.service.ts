@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { ChatMessage } from './schemas/message.schema';
 import { Collections } from '../../common/enums';
 import { User } from '../users/schemas';
+import { ChatWsService } from './chat-ws.service';
 
 @Injectable()
 export class ChatService {
@@ -13,7 +14,9 @@ export class ChatService {
 
     @InjectModel(Collections.USERS)
     private readonly userModel: Model<User>,
-  ) { }
+
+    private readonly chatWsService: ChatWsService,
+  ) {}
 
   private toOid(id: string): Types.ObjectId {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException('Invalid ID');
@@ -135,7 +138,7 @@ export class ChatService {
       message,
     });
 
-    return {
+    const senderPayload = {
       id: msg._id.toString(),
       from: userId,
       to: contactId,
@@ -144,6 +147,21 @@ export class ChatService {
       readAt: null,
       fromUsername: 'me',
     };
+
+    const recipientPayload = {
+      ...senderPayload,
+      fromUsername: (contact as any).username,
+    };
+
+    // Push real-time events via SSE (history stays in MongoDB)
+    this.chatWsService.emit(userId, 'new-message', senderPayload);
+    this.chatWsService.emit(contactId, 'new-message', recipientPayload);
+    this.chatWsService.emit(contactId, 'chat-updated', {
+      contactId: userId,
+      lastMessage: message,
+    });
+
+    return senderPayload;
   }
 
   async markRead(userId: string, contactId: string): Promise<void> {
