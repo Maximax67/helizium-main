@@ -9,7 +9,7 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
     working_dir: /usr/src/app
-    command: "npm run start:dev"
+    command: "pnpm start:dev"
     networks:
       - helizium-network
     ports:
