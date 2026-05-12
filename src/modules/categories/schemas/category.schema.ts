@@ -11,7 +11,7 @@ import { CategoryPermissionsSchema } from './category-permissions.schema';
   toJSON: { virtuals: true },
 })
 export class Category {
-  @Prop({ required: true, type: mongoose.Schema.Types.Long })
+  @Prop({ required: true, type: BigInt })
   location: bigint;
 
   @Prop({ type: Types.ObjectId, ref: Collections.CATEGORIES })

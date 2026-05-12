@@ -1,7 +1,7 @@
 import { CategoryPermissions, TopicPermissions, TopicTypes } from '../enums';
 
-export const CATEGORIES_MAX_DEPTH = 8;
-export const MAX_INNER_CATEGORIES = 255;
+export const CATEGORIES_MAX_DEPTH = 3;
+export const MAX_INNER_CATEGORIES = 10;
 
 export const INT_BITS_SIZE = 64;
 export const MAX_ACTIVE_CATEGORIES = 1n << BigInt(INT_BITS_SIZE);
