@@ -13,7 +13,7 @@ services:
     networks:
       - helizium-network
     ports:
-      - "3501:3500"
+      - "3501:3501"
     depends_on:
       - mongo
 
