@@ -28,11 +28,16 @@ services:
     networks:
       - helizium-network
     ports:
-      - '27017:27017'
+      - "27017:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=mongoadmin
       - MONGO_INITDB_ROOT_PASSWORD=mongoadmin
+    volumes:
+      - mongo-data:/data/db
 
 networks:
   helizium-network:
     external: true
+
+volumes:
+  mongo-data:
