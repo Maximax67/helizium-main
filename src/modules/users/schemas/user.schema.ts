@@ -50,6 +50,10 @@ export class User {
   @Prop({ trim: true, maxlength: 200 })
   industry?: string;
 
+  /** Ethereum wallet address registered by the user. Public by nature. */
+  @Prop({ trim: true, maxlength: 42, default: null })
+  ethAddress?: string | null;
+
   @Prop()
   birthsday?: Date;
 
@@ -92,6 +96,9 @@ UserSchema.virtual('isBirthsday').get(function () {
 });
 
 UserSchema.index({ username: 1 });
-UserSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { email: { $type: 'string' } } });
+UserSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: 'string' } } },
+);
 
 export { UserSchema };

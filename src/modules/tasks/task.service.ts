@@ -23,6 +23,8 @@ export class TaskService {
     private readonly userModel: Model<User>,
   ) { }
 
+  // ─────────────────────────── helpers ─────────────────────────────────
+
   private toObjectId(id: string): Types.ObjectId {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException(`Invalid ID: ${id}`);
     return new Types.ObjectId(id);
@@ -36,6 +38,38 @@ export class TaskService {
     if (!task) throw new NotFoundException('Task not found');
     return task;
   }
+
+  private mapPublicUser(user: any) {
+    return {
+      id: user._id.toString(),
+      username: user.username,
+      isBanned: user.isBanned,
+      isAdmin: !!(user.globalPermissions?.permissions?.length),
+      rating: user.trustRate || 0,
+      joinedDate: user.createdAt?.toISOString?.() || '',
+      bio: user.bio || null,
+      ethAddress: user.ethAddress || null,
+    };
+  }
+
+  private enrichTask(t: any, userMap: Map<string, any>) {
+    return {
+      ...t,
+      id: t._id.toString(),
+      categoryId: t.categoryId?.toString(),
+      authorId: t.authorId?.toString(),
+      performerId: t.performerId?.toString() || null,
+      disputeRaisedBy: t.disputeRaisedBy?.toString() || null,
+      applicants: (t.applicants || []).map((id: Types.ObjectId) => id.toString()),
+      rejectedApplicants: (t.rejectedApplicants || []).map((id: Types.ObjectId) => id.toString()),
+      postedAt: t.createdAt?.toISOString(),
+      dueDate: t.dueDate?.toISOString(),
+      author: userMap.get(t.authorId?.toString()) ? this.mapPublicUser(userMap.get(t.authorId?.toString())!) : undefined,
+      performer: t.performerId && userMap.get(t.performerId?.toString()) ? this.mapPublicUser(userMap.get(t.performerId?.toString())!) : undefined,
+    };
+  }
+
+  // ─────────────────────────── public API ──────────────────────────────
 
   async listTasks(params: {
     page?: number;
@@ -52,18 +86,11 @@ export class TaskService {
     performerId?: string;
   }) {
     const {
-      page = 1,
-      limit = 10,
-      categoryId,
-      search,
-      minPrice,
-      maxPrice,
-      fromDate,
-      toDate,
-      sortBy = 'createdAt',
-      sortDir = 'desc',
-      authorId,
-      performerId,
+      page = 1, limit = 10,
+      categoryId, search, minPrice, maxPrice,
+      fromDate, toDate,
+      sortBy = 'createdAt', sortDir = 'desc',
+      authorId, performerId,
     } = params;
 
     const filter: FilterQuery<Task> = { isDeleted: false };
@@ -71,6 +98,7 @@ export class TaskService {
     if (categoryId) filter.categoryId = this.toObjectId(categoryId);
     if (authorId) filter.authorId = this.toObjectId(authorId);
     if (performerId) filter.performerId = this.toObjectId(performerId);
+
     if (minPrice !== undefined || maxPrice !== undefined) {
       filter.price = {};
       if (minPrice !== undefined) filter.price.$gte = minPrice;
@@ -81,9 +109,7 @@ export class TaskService {
       if (fromDate) filter.dueDate.$gte = new Date(fromDate);
       if (toDate) filter.dueDate.$lte = new Date(toDate);
     }
-    if (search) {
-      filter.$text = { $search: search };
-    }
+    if (search) filter.$text = { $search: search };
 
     const sortMap: Record<string, string> = {
       title: 'title',
@@ -104,7 +130,6 @@ export class TaskService {
       this.taskModel.countDocuments(filter),
     ]);
 
-    // Populate author/performer
     const userIds = [
       ...new Set([
         ...tasks.map((t) => t.authorId?.toString()),
@@ -114,38 +139,13 @@ export class TaskService {
 
     const users = await this.userModel
       .find({ _id: { $in: userIds.map((id) => new Types.ObjectId(id!)) } })
-      .select('_id username isBanned globalPermissions activities joinedDate bio')
+      .select('_id username isBanned globalPermissions trustRate createdAt bio ethAddress')
       .lean();
 
     const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
-
-    const enriched = tasks.map((t: any) => ({
-      ...t,
-      id: t._id.toString(),
-      categoryId: t.categoryId?.toString(),
-      authorId: t.authorId?.toString(),
-      performerId: t.performerId?.toString() || null,
-      applicants: (t.applicants || []).map((id: Types.ObjectId) => id.toString()),
-      rejectedApplicants: (t.rejectedApplicants || []).map((id: Types.ObjectId) => id.toString()),
-      postedAt: t.createdAt?.toISOString(),
-      dueDate: t.dueDate?.toISOString(),
-      author: userMap.get(t.authorId?.toString()) ? this.mapPublicUser(userMap.get(t.authorId?.toString())!) : undefined,
-      performer: t.performerId && userMap.get(t.performerId?.toString()) ? this.mapPublicUser(userMap.get(t.performerId?.toString())!) : undefined,
-    }));
+    const enriched = tasks.map((t: any) => this.enrichTask(t, userMap));
 
     return { tasks: enriched, total, page, limit };
-  }
-
-  private mapPublicUser(user: any) {
-    return {
-      id: user._id.toString(),
-      username: user.username,
-      isBanned: user.isBanned,
-      isAdmin: !!(user.globalPermissions?.permissions?.length),
-      rating: user.activities?.trustRate || 0,
-      joinedDate: user.createdAt?.toISOString?.() || '',
-      bio: user.bio,
-    };
   }
 
   async getTask(id: string): Promise<any> {
@@ -155,23 +155,11 @@ export class TaskService {
     const userIds = [t.authorId, t.performerId].filter(Boolean);
     const users = await this.userModel
       .find({ _id: { $in: userIds } })
-      .select('_id username isBanned globalPermissions activities createdAt bio')
+      .select('_id username isBanned globalPermissions trustRate createdAt bio ethAddress')
       .lean();
     const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
 
-    return {
-      ...t,
-      id: t._id.toString(),
-      categoryId: t.categoryId?.toString(),
-      authorId: t.authorId?.toString(),
-      performerId: t.performerId?.toString() || null,
-      applicants: (t.applicants || []).map((id: Types.ObjectId) => id.toString()),
-      rejectedApplicants: (t.rejectedApplicants || []).map((id: Types.ObjectId) => id.toString()),
-      postedAt: t.createdAt?.toISOString(),
-      dueDate: t.dueDate?.toISOString(),
-      author: userMap.get(t.authorId?.toString()) ? this.mapPublicUser(userMap.get(t.authorId?.toString())!) : undefined,
-      performer: t.performerId && userMap.get(t.performerId?.toString()) ? this.mapPublicUser(userMap.get(t.performerId?.toString())!) : undefined,
-    };
+    return this.enrichTask(t, userMap);
   }
 
   async createTask(userId: string, dto: CreateTaskDto): Promise<any> {
@@ -194,21 +182,36 @@ export class TaskService {
     if (task.authorId.toString() !== userId) {
       throw new ForbiddenException('Not the task author');
     }
-    if (task.status !== TaskStatus.SEARCHING) {
-      throw new ConflictException('Cannot edit task after freelancer assigned');
-    }
-    if (task.applicants.length > 0) {
-      throw new ConflictException('Cannot edit task with pending applicants');
-    }
 
     const update: Partial<Task> = {};
-    if (dto.title) update.title = dto.title;
-    if (dto.content) update.content = dto.content;
-    if (dto.categoryId) update.categoryId = this.toObjectId(dto.categoryId);
-    if (dto.price !== undefined) update.price = dto.price;
-    if (dto.dueDate) update.dueDate = new Date(dto.dueDate);
 
-    await this.taskModel.updateOne({ _id: task._id }, { $set: update });
+    // contractTxHash can always be updated by the author (no restrictions)
+    if (dto.contractTxHash !== undefined) {
+      update.contractTxHash = dto.contractTxHash;
+    }
+
+    // Other fields only allowed during SEARCHING with no applicants
+    const hasContentChanges = dto.title || dto.content || dto.categoryId ||
+      dto.price !== undefined || dto.dueDate;
+
+    if (hasContentChanges) {
+      if (task.status !== TaskStatus.SEARCHING) {
+        throw new ConflictException('Cannot edit task content after freelancer assigned');
+      }
+      if (task.applicants.length > 0) {
+        throw new ConflictException('Cannot edit task with pending applicants');
+      }
+      if (dto.title) update.title = dto.title;
+      if (dto.content) update.content = dto.content;
+      if (dto.categoryId) update.categoryId = this.toObjectId(dto.categoryId);
+      if (dto.price !== undefined) update.price = dto.price;
+      if (dto.dueDate) update.dueDate = new Date(dto.dueDate);
+    }
+
+    if (Object.keys(update).length > 0) {
+      await this.taskModel.updateOne({ _id: task._id }, { $set: update });
+    }
+
     return this.getTask(taskId);
   }
 
@@ -219,7 +222,7 @@ export class TaskService {
       throw new ForbiddenException('Not authorized');
     }
     if (task.status !== TaskStatus.SEARCHING) {
-      throw new ConflictException('Cannot delete task in progress');
+      throw new ConflictException('Cannot delete task that is in progress or disputed');
     }
 
     await this.taskModel.updateOne({ _id: task._id }, { $set: { isDeleted: true } });
@@ -248,18 +251,12 @@ export class TaskService {
 
   async rejectApplicant(taskId: string, applicantId: string, userId: string): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
-    if (task.authorId.toString() !== userId) {
-      throw new ForbiddenException('Not the task author');
-    }
+    if (task.authorId.toString() !== userId) throw new ForbiddenException('Not the task author');
 
     const appObjId = this.toObjectId(applicantId);
     await this.taskModel.updateOne(
       { _id: task._id },
-      {
-        $pull: { applicants: appObjId },
-        $push: { rejectedApplicants: appObjId },
-      },
+      { $pull: { applicants: appObjId }, $push: { rejectedApplicants: appObjId } },
     );
     return this.getTask(taskId);
   }
@@ -271,10 +268,7 @@ export class TaskService {
     contractTxHash?: string,
   ): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
-    if (task.authorId.toString() !== userId) {
-      throw new ForbiddenException('Not the task author');
-    }
+    if (task.authorId.toString() !== userId) throw new ForbiddenException('Not the task author');
     if (!task.applicants.some((id) => id.toString() === applicantId)) {
       throw new NotFoundException('Applicant not found');
     }
@@ -296,7 +290,6 @@ export class TaskService {
 
   async submitWork(taskId: string, userId: string, workResult: string): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
     if (!task.performerId || task.performerId.toString() !== userId) {
       throw new ForbiddenException('Not the task performer');
     }
@@ -313,10 +306,7 @@ export class TaskService {
 
   async completeTask(taskId: string, userId: string, contractTxHash?: string): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
-    if (task.authorId.toString() !== userId) {
-      throw new ForbiddenException('Not the task author');
-    }
+    if (task.authorId.toString() !== userId) throw new ForbiddenException('Not the task author');
     if (task.status !== TaskStatus.WAITING_APPROVAL) {
       throw new ConflictException('Work not submitted');
     }
@@ -336,33 +326,23 @@ export class TaskService {
 
   async rejectWork(taskId: string, userId: string, rejectionMessage: string): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
-    if (task.authorId.toString() !== userId) {
-      throw new ForbiddenException('Not the task author');
-    }
+    if (task.authorId.toString() !== userId) throw new ForbiddenException('Not the task author');
     if (task.status !== TaskStatus.WAITING_APPROVAL) {
       throw new ConflictException('Work not submitted');
     }
 
     await this.taskModel.updateOne(
       { _id: task._id },
-      {
-        $set: {
-          workResult: null,
-          rejectionMessage,
-          status: TaskStatus.IN_PROGRESS,
-        },
-      },
+      { $set: { workResult: null, rejectionMessage, status: TaskStatus.IN_PROGRESS } },
     );
     return this.getTask(taskId);
   }
 
   async discardFreelancer(taskId: string, userId: string, isAdmin: boolean): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
     if (!isAdmin) throw new ForbiddenException('Admin only');
-    if (task.status === TaskStatus.COMPLETED) {
-      throw new ConflictException('Task already completed');
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
+      throw new ConflictException('Task already settled');
     }
 
     await this.taskModel.updateOne(
@@ -372,6 +352,7 @@ export class TaskService {
           performerId: null,
           workResult: null,
           rejectionMessage: null,
+          disputeRaisedBy: null,
           status: TaskStatus.SEARCHING,
         },
       },
@@ -381,39 +362,25 @@ export class TaskService {
 
   async rateTask(taskId: string, userId: string, rating: number): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
-
-    if (task.authorId.toString() !== userId) {
-      throw new ForbiddenException('Only task author can rate');
-    }
-    if (!task.completed) {
-      throw new ConflictException('Task not completed');
-    }
-    if (task.performerRating !== null) {
-      throw new ConflictException('Already rated');
-    }
-    if (rating < 1 || rating > 5) {
-      throw new BadRequestException('Rating must be between 1 and 5');
-    }
+    if (task.authorId.toString() !== userId) throw new ForbiddenException('Only task author can rate');
+    if (!task.completed) throw new ConflictException('Task not completed');
+    if (task.performerRating !== null) throw new ConflictException('Already rated');
+    if (rating < 1 || rating > 5) throw new BadRequestException('Rating must be 1–5');
 
     await this.taskModel.updateOne({ _id: task._id }, { $set: { performerRating: rating } });
 
-    // Update performer's trust rate
     if (task.performerId) {
       const performer = await this.userModel.findById(task.performerId);
       if (performer) {
-        const currentRate = performer.trustRate || 0;
-        const completedTasks = performer.activities?.posts || 0;
-        const newRate =
-          completedTasks === 0
-            ? rating * 20
-            : Math.min(100, (currentRate * completedTasks + rating * 20) / (completedTasks + 1));
+        const currentRate = (performer as any).trustRate || 0;
+        const completedTasks = (performer as any).activities?.posts || 0;
+        const newRate = completedTasks === 0
+          ? rating * 20
+          : Math.min(100, (currentRate * completedTasks + rating * 20) / (completedTasks + 1));
 
         await this.userModel.updateOne(
           { _id: task.performerId },
-          {
-            $set: { trustRate: Math.round(newRate) },
-            $inc: { 'activities.posts': 1 },
-          },
+          { $set: { trustRate: Math.round(newRate) }, $inc: { 'activities.posts': 1 } },
         );
       }
     }
@@ -421,10 +388,79 @@ export class TaskService {
     return this.getTask(taskId);
   }
 
+  // ─────────────────────────── dispute flow ─────────────────────────────
+
+  /**
+   * Either the task author or the performer (or admin) can request a dispute.
+   * The on-chain freeze is handled separately by the client's MetaMask or the admin.
+   */
+  async raiseDispute(taskId: string, userId: string, isAdmin: boolean): Promise<any> {
+    const task = await this.getTaskOrFail(taskId);
+
+    const isAuthor = task.authorId.toString() === userId;
+    const isPerformer = task.performerId && task.performerId.toString() === userId;
+
+    if (!isAdmin && !isAuthor && !isPerformer) {
+      throw new ForbiddenException('Only the task parties or admin can raise a dispute');
+    }
+
+    const allowedStatuses: TaskStatus[] = [
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.WAITING_APPROVAL,
+    ];
+    if (!allowedStatuses.includes(task.status)) {
+      throw new ConflictException(`Cannot raise dispute in status: ${task.status}`);
+    }
+
+    await this.taskModel.updateOne(
+      { _id: task._id },
+      {
+        $set: {
+          status: TaskStatus.DISPUTED,
+          disputeRaisedBy: this.toObjectId(userId),
+        },
+      },
+    );
+    return this.getTask(taskId);
+  }
+
+  /**
+   * Admin resolves a dispute: updates backend state.
+   * The actual on-chain fund release is done separately via the admin's MetaMask.
+   */
+  async resolveDispute(
+    taskId: string,
+    adminUserId: string,
+    favorFreelancer: boolean,
+    contractTxHash?: string,
+  ): Promise<any> {
+    const task = await this.getTaskOrFail(taskId);
+
+    if (task.status !== TaskStatus.DISPUTED) {
+      throw new ConflictException('Task is not in disputed status');
+    }
+
+    await this.taskModel.updateOne(
+      { _id: task._id },
+      {
+        $set: {
+          status: favorFreelancer ? TaskStatus.COMPLETED : TaskStatus.CANCELLED,
+          completed: favorFreelancer,
+          contractTxHash: contractTxHash || task.contractTxHash,
+        },
+      },
+    );
+    return this.getTask(taskId);
+  }
+
+  // ─────────────────────────── public user ──────────────────────────────
+
   async getPublicUser(userId: string): Promise<any> {
     const user = await this.userModel
       .findOne({ _id: this.toObjectId(userId), isDeleted: false })
-      .select('_id username isBanned globalPermissions activities createdAt bio location industry')
+      .select(
+        '_id username isBanned globalPermissions trustRate createdAt bio location industry ethAddress',
+      )
       .lean();
 
     if (!user) throw new NotFoundException('User not found');
@@ -436,9 +472,10 @@ export class TaskService {
       isAdmin: !!((user as any).globalPermissions?.permissions?.length),
       rating: (user as any).trustRate || 0,
       joinedDate: (user as any).createdAt?.toISOString?.() || '',
-      bio: (user as any).bio,
-      location: (user as any).location,
-      industry: (user as any).industry,
+      bio: (user as any).bio || null,
+      location: (user as any).location || null,
+      industry: (user as any).industry || null,
+      ethAddress: (user as any).ethAddress || null,
     };
   }
 }

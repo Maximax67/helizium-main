@@ -7,6 +7,8 @@ export enum TaskStatus {
   IN_PROGRESS = 'in_progress',
   WAITING_APPROVAL = 'waiting_approval',
   COMPLETED = 'completed',
+  DISPUTED = 'disputed',
+  CANCELLED = 'cancelled',
 }
 
 @Schema({ timestamps: true, toObject: { virtuals: true }, toJSON: { virtuals: true } })
@@ -53,11 +55,16 @@ export class Task {
   @Prop({ type: String, default: null })
   rejectionMessage: string | null;
 
+  /** Ethereum transaction hash of the most recent relevant on-chain operation. */
   @Prop({ type: String, default: null })
   contractTxHash: string | null;
 
   @Prop({ type: Number, default: null, min: 1, max: 5 })
   performerRating: number | null;
+
+  /** Who raised the dispute. */
+  @Prop({ type: Types.ObjectId, ref: Collections.USERS, default: null })
+  disputeRaisedBy: Types.ObjectId | null;
 
   @Prop({ default: false })
   isDeleted: boolean;
@@ -71,6 +78,7 @@ TaskSchema.index({ authorId: 1 });
 TaskSchema.index({ categoryId: 1 });
 TaskSchema.index({ status: 1 });
 TaskSchema.index({ isDeleted: 1 });
+TaskSchema.index({ performerId: 1 });
 TaskSchema.index({ title: 'text', content: 'text' });
 TaskSchema.index({ price: 1 });
 TaskSchema.index({ dueDate: 1 });

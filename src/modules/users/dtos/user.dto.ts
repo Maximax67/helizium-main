@@ -43,6 +43,12 @@ export class UserDto {
   bio?: string;
 
   @Expose()
+  location?: string;
+
+  @Expose()
+  industry?: string;
+
+  @Expose()
   birthsday?: Date;
 
   @Expose()

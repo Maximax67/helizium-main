@@ -1,35 +1,17 @@
 import {
-  IsNumber,
-  IsOptional,
-  IsPositive,
-  IsString,
-  MaxLength,
-  MinLength,
+  IsNumber, IsOptional, IsPositive, IsString,
+  MaxLength, MinLength,
 } from 'class-validator';
 
 export class EditTaskDto {
-  @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(200)
-  title?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(10)
-  @MaxLength(5000)
-  content?: string;
-
-  @IsOptional()
-  @IsString()
-  categoryId?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @IsPositive()
-  price?: number;
-
-  @IsOptional()
-  @IsString()
-  dueDate?: string;
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(200) title?: string;
+  @IsOptional() @IsString() @MinLength(10) @MaxLength(5000) content?: string;
+  @IsOptional() @IsString() categoryId?: string;
+  @IsOptional() @IsNumber() @IsPositive() price?: number;
+  @IsOptional() @IsString() dueDate?: string;
+  /**
+   * Ethereum transaction hash — can always be updated by the author regardless
+   * of applicants or status. Used to record the on-chain tx after funding.
+   */
+  @IsOptional() @IsString() @MaxLength(200) contractTxHash?: string;
 }

@@ -1,28 +1,19 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Put,
-  Query,
-  UseGuards,
+  Body, Controller, Delete, Get, HttpCode,
+  Param, Post, Put, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { CreateTaskDto } from './dtos/create-task.dto';
 import { EditTaskDto } from './dtos/edit-task.dto';
 import { AuthorizedGuard } from '../../common/guards';
-import { AllowedLimits, CurrentUserId, OptionalAuthorization } from '../../common/decorators';
+import {
+  AllowedLimits, CurrentUserId, OptionalAuthorization,
+} from '../../common/decorators';
 import { AuthorizedRequest } from '../../common/interfaces';
 import { TokenLimits } from '../../common/enums';
 import { ValidateMongoId } from '../../common/pipes';
-import {
-  IsNumber, IsOptional, IsString, Min, IsEnum, IsPositive,
-} from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { Request } from '@nestjs/common';
 
 class TaskQueryDto {
   @IsOptional() @Transform(({ value }) => parseInt(value)) @IsNumber() @Min(1) page?: number;
@@ -39,31 +30,22 @@ class TaskQueryDto {
   @IsOptional() @IsString() performerId?: string;
 }
 
-class SubmitWorkDto {
-  @IsString() workResult: string;
-}
-
-class RejectWorkDto {
-  @IsString() rejectionMessage: string;
-}
-
-class CompleteTaskDto {
+class SubmitWorkDto { @IsString() workResult: string; }
+class RejectWorkDto { @IsString() rejectionMessage: string; }
+class CompleteTaskDto { @IsOptional() @IsString() contractTxHash?: string; }
+class ApproveApplicantDto { @IsOptional() @IsString() contractTxHash?: string; }
+class RateTaskDto { @IsNumber() @Min(1) rating: number; }
+class RaiseDisputeDto { @IsOptional() @IsString() contractTxHash?: string; }
+class ResolveDisputeDto {
+  @IsBoolean() favorFreelancer: boolean;
   @IsOptional() @IsString() contractTxHash?: string;
-}
-
-class ApproveApplicantDto {
-  @IsOptional() @IsString() contractTxHash?: string;
-}
-
-class RateTaskDto {
-  @IsNumber() @Min(1) rating: number;
 }
 
 @Controller({ path: 'tasks', version: '1' })
 export class TaskController {
   constructor(private readonly taskService: TaskService) { }
 
-  private isAdminRequest(req: AuthorizedRequest): boolean {
+  private isAdmin(req: AuthorizedRequest): boolean {
     return (
       req.auth?.limits === TokenLimits.ROOT ||
       req.auth?.limits === TokenLimits.BANNED_ROOT
@@ -122,7 +104,7 @@ export class TaskController {
     @CurrentUserId() userId: string,
     @Request() req: AuthorizedRequest,
   ) {
-    await this.taskService.deleteTask(id, userId, this.isAdminRequest(req));
+    await this.taskService.deleteTask(id, userId, this.isAdmin(req));
   }
 
   @Post('/:id/apply')
@@ -207,5 +189,39 @@ export class TaskController {
     @Body() dto: RateTaskDto,
   ) {
     return this.taskService.rateTask(id, userId, dto.rating);
+  }
+
+  /**
+   * Raise a dispute on a task.
+   * Available to: task author, performer, or admin.
+   * The on-chain `raiseDispute()` call is handled by the client's MetaMask (for
+   * task authors) or by the admin (for performer-initiated disputes).
+   */
+  @Post('/:id/raise-dispute')
+  @UseGuards(AuthorizedGuard)
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
+  async raiseDispute(
+    @Param('id', ValidateMongoId) id: string,
+    @CurrentUserId() userId: string,
+    @Request() req: AuthorizedRequest,
+    @Body() _dto: RaiseDisputeDto,
+  ) {
+    return this.taskService.raiseDispute(id, userId, this.isAdmin(req));
+  }
+
+  /**
+   * Admin resolves a dispute.
+   * The on-chain `resolveDispute(taskDbId, recipient)` call must be made
+   * separately through the admin's MetaMask before or after calling this endpoint.
+   */
+  @Post('/:id/resolve-dispute')
+  @UseGuards(AuthorizedGuard)
+  @AllowedLimits([TokenLimits.ROOT])
+  async resolveDispute(
+    @Param('id', ValidateMongoId) id: string,
+    @CurrentUserId() userId: string,
+    @Body() dto: ResolveDisputeDto,
+  ) {
+    return this.taskService.resolveDispute(id, userId, dto.favorFreelancer, dto.contractTxHash);
   }
 }

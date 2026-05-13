@@ -24,7 +24,13 @@ export class UserService implements OnModuleInit {
     const result = await this.userModel.findOneAndUpdate(
       { username: SYSTEM_USERNAME, email: null },
       { globalPermissions: { permissions: Object.values(GlobalPermissions) } },
-      { new: true, upsert: true, setDefaultsOnInsert: true, timestamps: false, projection: { _id: 1 } },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+        timestamps: false,
+        projection: { _id: 1 },
+      },
     );
     this.systemUserIdProvider.systemUserId = result._id;
   }
@@ -38,7 +44,10 @@ export class UserService implements OnModuleInit {
     return user._id.toString();
   }
 
-  private async changePropertyIfFound(userId: string, property: AnyKeys<User>): Promise<boolean | null> {
+  private async changePropertyIfFound(
+    userId: string,
+    property: AnyKeys<User>,
+  ): Promise<boolean | null> {
     const result = await this.userModel.updateOne({ _id: userId }, { $set: property });
     if (result.matchedCount === 0) return null;
     return result.modifiedCount !== 0;
@@ -104,7 +113,9 @@ export class UserService implements OnModuleInit {
     if (!Types.ObjectId.isValid(userId)) throw new NotFoundException('User not found');
     const user = await this.userModel
       .findOne({ _id: new Types.ObjectId(userId), isDeleted: false })
-      .select('_id username isBanned globalPermissions trustRate activities createdAt bio location industry')
+      .select(
+        '_id username isBanned globalPermissions trustRate activities createdAt bio location industry ethAddress',
+      )
       .lean();
 
     if (!user) throw new NotFoundException('User not found');
@@ -119,13 +130,14 @@ export class UserService implements OnModuleInit {
       bio: (user as any).bio || null,
       location: (user as any).location || null,
       industry: (user as any).industry || null,
+      ethAddress: (user as any).ethAddress || null,
     };
   }
 
   async updateProfileField(
     userId: string,
-    field: 'bio' | 'location' | 'industry',
-    value: string,
+    field: 'bio' | 'location' | 'industry' | 'ethAddress',
+    value: string | null,
   ): Promise<void> {
     if (!Types.ObjectId.isValid(userId)) return;
     await this.userModel.updateOne(
