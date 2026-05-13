@@ -79,7 +79,7 @@ export class UserController {
     await this.userService.updateProfileField(
       userId,
       'ethAddress' as any,
-      body.ethAddress || null,
+      body.ethAddress ?? '',
     );
   }
 

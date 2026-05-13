@@ -137,7 +137,7 @@ export class UserService implements OnModuleInit {
   async updateProfileField(
     userId: string,
     field: 'bio' | 'location' | 'industry' | 'ethAddress',
-    value: string | null,
+    value: string,
   ): Promise<void> {
     if (!Types.ObjectId.isValid(userId)) return;
     await this.userModel.updateOne(

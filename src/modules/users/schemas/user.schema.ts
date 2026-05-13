@@ -52,7 +52,7 @@ export class User {
 
   /** Ethereum wallet address registered by the user. Public by nature. */
   @Prop({ trim: true, maxlength: 42, default: null })
-  ethAddress?: string | null;
+  ethAddress?: string;
 
   @Prop()
   birthsday?: Date;
