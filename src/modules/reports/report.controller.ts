@@ -39,14 +39,14 @@ export class ReportController {
 
   @Get('/reports')
   @UseGuards(AuthorizedGuard)
-  @AllowedLimits([TokenLimits.ROOT])
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   async getReports() {
     return this.reportService.getReports();
   }
 
   @Put('/reports/:reportId/status')
   @UseGuards(AuthorizedGuard)
-  @AllowedLimits([TokenLimits.ROOT])
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   async updateReportStatus(
     @Param('reportId', ValidateMongoId) reportId: string,
     @Body() dto: UpdateReportStatusDto,

@@ -10,6 +10,9 @@ services:
       - /usr/src/app/node_modules
     working_dir: /usr/src/app
     command: "pnpm start:dev"
+    env_file:
+      - path: .env
+        required: false
     networks:
       - helizium-network
     ports:

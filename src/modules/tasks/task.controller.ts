@@ -172,7 +172,7 @@ export class TaskController {
 
   @Post('/:id/discard-freelancer')
   @UseGuards(AuthorizedGuard)
-  @AllowedLimits([TokenLimits.ROOT])
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   async discardFreelancer(
     @Param('id', ValidateMongoId) id: string,
     @CurrentUserId() userId: string,
@@ -216,7 +216,7 @@ export class TaskController {
    */
   @Post('/:id/resolve-dispute')
   @UseGuards(AuthorizedGuard)
-  @AllowedLimits([TokenLimits.ROOT])
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
   async resolveDispute(
     @Param('id', ValidateMongoId) id: string,
     @CurrentUserId() userId: string,
