@@ -28,6 +28,7 @@ class TaskQueryDto {
   @IsOptional() @IsString() sortDir?: string;
   @IsOptional() @IsString() authorId?: string;
   @IsOptional() @IsString() performerId?: string;
+  @IsOptional() @IsString() status?: string;
 }
 
 class SubmitWorkDto { @IsString() workResult: string; }
@@ -68,6 +69,7 @@ export class TaskController {
       sortDir: query.sortDir,
       authorId: query.authorId,
       performerId: query.performerId,
+      status: query.status,
     });
   }
 
@@ -191,12 +193,6 @@ export class TaskController {
     return this.taskService.rateTask(id, userId, dto.rating);
   }
 
-  /**
-   * Raise a dispute on a task.
-   * Available to: task author, performer, or admin.
-   * The on-chain `raiseDispute()` call is handled by the client's MetaMask (for
-   * task authors) or by the admin (for performer-initiated disputes).
-   */
   @Post('/:id/raise-dispute')
   @UseGuards(AuthorizedGuard)
   @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
@@ -209,11 +205,6 @@ export class TaskController {
     return this.taskService.raiseDispute(id, userId, this.isAdmin(req));
   }
 
-  /**
-   * Admin resolves a dispute.
-   * The on-chain `resolveDispute(taskDbId, recipient)` call must be made
-   * separately through the admin's MetaMask before or after calling this endpoint.
-   */
   @Post('/:id/resolve-dispute')
   @UseGuards(AuthorizedGuard)
   @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])

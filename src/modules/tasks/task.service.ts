@@ -10,8 +10,10 @@ import { FilterQuery, Model, Types } from 'mongoose';
 import { Task, TaskDocument, TaskStatus } from './schemas/task.schema';
 import { CreateTaskDto } from './dtos/create-task.dto';
 import { EditTaskDto } from './dtos/edit-task.dto';
-import { Collections } from '../../common/enums';
+import { Collections, TopicPermissions } from '../../common/enums';
 import { User } from '../users/schemas';
+import { UserCategoryPermissions } from '../users/schemas';
+import { Category } from '../categories/schemas';
 
 @Injectable()
 export class TaskService {
@@ -21,6 +23,12 @@ export class TaskService {
 
     @InjectModel(Collections.USERS)
     private readonly userModel: Model<User>,
+
+    @InjectModel(Collections.USER_CATEGORY_PERMISSIONS)
+    private readonly userCategoryPermissionsModel: Model<UserCategoryPermissions>,
+
+    @InjectModel(Collections.CATEGORIES)
+    private readonly categoryModel: Model<Category>,
   ) { }
 
   // ─────────────────────────── helpers ─────────────────────────────────
@@ -84,13 +92,14 @@ export class TaskService {
     sortDir?: string;
     authorId?: string;
     performerId?: string;
+    status?: string;
   }) {
     const {
       page = 1, limit = 10,
       categoryId, search, minPrice, maxPrice,
       fromDate, toDate,
       sortBy = 'createdAt', sortDir = 'desc',
-      authorId, performerId,
+      authorId, performerId, status,
     } = params;
 
     const filter: FilterQuery<Task> = { isDeleted: false };
@@ -98,6 +107,11 @@ export class TaskService {
     if (categoryId) filter.categoryId = this.toObjectId(categoryId);
     if (authorId) filter.authorId = this.toObjectId(authorId);
     if (performerId) filter.performerId = this.toObjectId(performerId);
+
+    // Status filter: only apply if it is a known value
+    if (status && Object.values(TaskStatus).includes(status as TaskStatus)) {
+      filter.status = status as TaskStatus;
+    }
 
     if (minPrice !== undefined || maxPrice !== undefined) {
       filter.price = {};
@@ -163,9 +177,42 @@ export class TaskService {
   }
 
   async createTask(userId: string, dto: CreateTaskDto): Promise<any> {
+    const categoryOid = this.toObjectId(dto.categoryId);
+    const userOid = this.toObjectId(userId);
+
+    // ── Permission check ──────────────────────────────────────────────
+    const category = await this.categoryModel.findOne({
+      _id: categoryOid,
+      isDeleted: false,
+    });
+    if (!category) throw new NotFoundException('Category not found');
+
+    // Look up any user-specific override for this category
+    const userCatPerm = await this.userCategoryPermissionsModel.findOne({
+      userId: userOid,
+      categoryId: categoryOid,
+      revokedBy: null,
+    });
+
+    const userGrantedCreate = userCatPerm?.topicsGranted?.includes(TopicPermissions.CREATE) ?? false;
+    const userRevokedCreate = userCatPerm?.topicsRevoked?.includes(TopicPermissions.CREATE) ?? false;
+
+    if (userRevokedCreate) {
+      throw new ForbiddenException('You do not have permission to create tasks in this category');
+    }
+
+    // If not explicitly granted for the user, fall back to category-level setting
+    if (!userGrantedCreate) {
+      const catRevoked: string[] = (category.permissions?.topicsRevoked as string[]) || [];
+      if (catRevoked.includes(TopicPermissions.CREATE)) {
+        throw new ForbiddenException('Task creation is not allowed in this category');
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     const task = await this.taskModel.create({
-      authorId: this.toObjectId(userId),
-      categoryId: this.toObjectId(dto.categoryId),
+      authorId: userOid,
+      categoryId: categoryOid,
       title: dto.title,
       content: dto.content,
       dueDate: new Date(dto.dueDate),
@@ -185,12 +232,10 @@ export class TaskService {
 
     const update: Partial<Task> = {};
 
-    // contractTxHash can always be updated by the author (no restrictions)
     if (dto.contractTxHash !== undefined) {
       update.contractTxHash = dto.contractTxHash;
     }
 
-    // Other fields only allowed during SEARCHING with no applicants
     const hasContentChanges = dto.title || dto.content || dto.categoryId ||
       dto.price !== undefined || dto.dueDate;
 
@@ -390,10 +435,6 @@ export class TaskService {
 
   // ─────────────────────────── dispute flow ─────────────────────────────
 
-  /**
-   * Either the task author or the performer (or admin) can request a dispute.
-   * The on-chain freeze is handled separately by the client's MetaMask or the admin.
-   */
   async raiseDispute(taskId: string, userId: string, isAdmin: boolean): Promise<any> {
     const task = await this.getTaskOrFail(taskId);
 
@@ -424,10 +465,6 @@ export class TaskService {
     return this.getTask(taskId);
   }
 
-  /**
-   * Admin resolves a dispute: updates backend state.
-   * The actual on-chain fund release is done separately via the admin's MetaMask.
-   */
   async resolveDispute(
     taskId: string,
     adminUserId: string,
