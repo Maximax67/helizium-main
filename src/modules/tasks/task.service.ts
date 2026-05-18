@@ -490,6 +490,47 @@ export class TaskService {
     return this.getTask(taskId);
   }
 
+  // ─────────────────────────── stats ───────────────────────────────────
+
+  async getMyStats(userId: string): Promise<{ created: number; active: number; completed: number }> {
+    const userOid = this.toObjectId(userId);
+    const [result] = await this.taskModel.aggregate([
+      {
+        $facet: {
+          created: [
+            { $match: { authorId: userOid, isDeleted: false } },
+            { $count: 'n' },
+          ],
+          active: [
+            {
+              $match: {
+                performerId: userOid,
+                isDeleted: false,
+                status: { $in: [TaskStatus.IN_PROGRESS, TaskStatus.WAITING_APPROVAL, TaskStatus.DISPUTED] },
+              },
+            },
+            { $count: 'n' },
+          ],
+          completed: [
+            {
+              $match: {
+                performerId: userOid,
+                isDeleted: false,
+                status: TaskStatus.COMPLETED,
+              },
+            },
+            { $count: 'n' },
+          ],
+        },
+      },
+    ]);
+    return {
+      created: result?.created?.[0]?.n ?? 0,
+      active: result?.active?.[0]?.n ?? 0,
+      completed: result?.completed?.[0]?.n ?? 0,
+    };
+  }
+
   // ─────────────────────────── public user ──────────────────────────────
 
   async getPublicUser(userId: string): Promise<any> {

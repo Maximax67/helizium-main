@@ -73,6 +73,13 @@ export class TaskController {
     });
   }
 
+  @Get('/my-stats')
+  @UseGuards(AuthorizedGuard)
+  @AllowedLimits([TokenLimits.DEFAULT, TokenLimits.ROOT])
+  async getMyStats(@CurrentUserId() userId: string) {
+    return this.taskService.getMyStats(userId);
+  }
+
   @Get('/:id')
   @OptionalAuthorization()
   async getTask(@Param('id', ValidateMongoId) id: string) {
